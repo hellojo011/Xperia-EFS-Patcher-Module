@@ -1,0 +1,839 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EFS 통신사 프로필</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #1b1d21;
+    --muted: #6b7079;
+    --line: #e2e4e8;
+    --accent: #2f6fe4;
+    --accent-text: #ffffff;
+    --warn-bg: #fff4e0;
+    --warn-text: #8a5300;
+    --ok: #1d8a4c;
+    --err: #c62f2f;
+    --log-bg: #15171b;
+    --log-text: #d5d9e0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101114;
+      --card: #1a1c20;
+      --text: #e8eaee;
+      --muted: #9298a3;
+      --line: #2b2e34;
+      --accent: #5b8ff0;
+      --accent-text: #0d1117;
+      --warn-bg: #3a2c12;
+      --warn-text: #f3c77a;
+      --ok: #4cc283;
+      --err: #f07070;
+      --log-bg: #0b0c0e;
+      --log-text: #c9cdd4;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Noto Sans KR", sans-serif;
+    padding: max(16px, env(safe-area-inset-top)) 16px 32px;
+  }
+  main { max-width: 560px; margin: 0 auto; display: grid; gap: 12px; }
+  h1 { font-size: 20px; margin: 4px 0 0; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 4px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .card h2 { font-size: 14px; margin: 0 0 10px; color: var(--muted); font-weight: 600; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14px; }
+  .kv span:nth-child(odd) { color: var(--muted); }
+  .kv span:nth-child(even) { word-break: break-all; }
+  .note { background: var(--card); border: 1px solid var(--accent); color: var(--text); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+  body.locked [data-lock] { opacity: .45; pointer-events: none; }
+  .warn { background: var(--warn-bg); color: var(--warn-text); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+  .sim { margin-bottom: 12px; }
+  .sim:last-child { margin-bottom: 0; }
+  .sim-label { font-weight: 600; margin-bottom: 6px; }
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button {
+    border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--text);
+    padding: 10px 0; font: inherit; font-size: 14px;
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg.seg3 { grid-template-columns: repeat(3, 1fr); }
+  .seg.seg2 { grid-template-columns: repeat(2, 1fr); }
+  .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; overflow-wrap: anywhere; }
+  details.diff { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+  details.diff summary { cursor: pointer; }
+  .diff-list {
+    margin-top: 6px; font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.5;
+    white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all;
+  }
+  .card.testmode { border-color: var(--warn-text); background: var(--warn-bg); color: var(--warn-text); }
+  .card.testmode h2 { color: var(--warn-text); }
+  .card.testmode .kv span:nth-child(odd), .card.testmode .hint { color: var(--warn-text); opacity: 0.8; }
+  .test-ua { margin-top: 10px; }
+  .test-ua-label { font-size: 13px; font-weight: 600; }
+  .card.testmode .ua { background: var(--card); color: var(--text); }
+  #ua-test-carrier .hint { margin: 0 0 10px; }
+  .testmode-msg { white-space: pre-line; margin: 0 0 10px; font-weight: 600; word-break: break-all; }
+  .sim-label .path { color: var(--muted); font-weight: 400; font-size: 11px; font-family: ui-monospace, monospace; margin-left: 6px; word-break: break-all; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+  label.field { display: grid; gap: 4px; margin-bottom: 10px; font-size: 13px; color: var(--muted); }
+  input[type="text"] {
+    font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 10px; width: 100%;
+  }
+  .ua { font-family: ui-monospace, monospace; font-size: 12px; background: var(--bg); border-radius: 8px; padding: 8px 10px; word-break: break-all; margin-top: 6px; }
+  .check { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; font-size: 14px; }
+  .check input { margin-top: 3px; width: 18px; height: 18px; }
+  .check small { display: block; color: var(--muted); font-size: 12px; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .actions .wide { grid-column: 1 / -1; }
+  button.btn {
+    font: inherit; font-weight: 600; border-radius: 10px; padding: 12px; border: 1px solid var(--line);
+    background: var(--card); color: var(--text);
+  }
+  button.btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.btn:disabled { opacity: 0.5; }
+  .status { font-size: 14px; font-weight: 600; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--err); }
+  pre.log {
+    background: var(--log-bg); color: var(--log-text); border-radius: 8px; padding: 10px; margin: 8px 0 0;
+    font-size: 11px; line-height: 1.45; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+  }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>EFS 통신사 프로필</h1>
+    <p class="sub">EFSTools 없이 기기 안에서 모뎀 EFS에 통신사 프로필을 씁니다.</p>
+  </div>
+
+  <div id="noksu" class="warn" hidden>KernelSU WebUI 안에서 열어야 동작합니다.</div>
+  <div id="loading" class="warn" hidden>기기 정보를 불러오는 중…</div>
+  <div id="loadfail" class="warn" hidden>매니저가 명령 결과를 돌려주지 않아 기기 정보를 불러오지 못했습니다.
+    <button class="btn" id="reload" type="button" style="margin-top:8px">다시 시도</button></div>
+  <div id="applink" class="note" hidden>앱과 연결되어있습니다. 이곳에서 적용한 설정은 앱에서도 확인할 수 있습니다.</div>
+  <div id="integrated" class="warn" hidden>앱과 통합되어있습니다. 이곳에서 설정을 변경할 수 없습니다.<br>주의: 통합 설정이 켜진 상태에서 앱을 제거하면 모듈을 다시 설치하기 전까지 설정을 영구히 변경할 수 없습니다.</div>
+  <div id="efstrigger" class="warn" hidden>efstrigger 모듈이 켜져 있습니다. 두 도구가 동시에 diag를 쓰지 않도록 efstrigger를 비활성화하세요.</div>
+
+  <section class="card">
+    <h2>기기</h2>
+    <div class="kv">
+      <span>모델</span><span id="model">-</span>
+      <span>빌드</span><span id="build">-</span>
+      <span>칩셋</span><span id="platform">-</span>
+      <span>EFS 버전</span><span id="efsversion">-</span>
+      <span>EFS 출처</span><span id="efssource">-</span>
+      <span>감지된 SIM</span><span id="simdetect">-</span>
+      <span>파티션 백업</span><span id="partbackup">-</span>
+      <span>마지막 결과</span><span id="lastresult">-</span>
+    </div>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn" id="export" type="button">파티션 백업을 /sdcard로 내보내기</button>
+    </div>
+    <p class="hint" id="export-hint"></p>
+  </section>
+
+  <section class="card">
+    <h2>EFS 프로필 업데이트</h2>
+    <div class="sim">
+      <div class="sim-label">받을 채널</div>
+      <div class="seg seg2" id="pack-channel" data-lock></div>
+    </div>
+    <div class="kv">
+      <span>사용 중</span><span id="pack-current">-</span>
+      <span>최신 릴리스</span><span id="pack-remote">확인 전</span>
+    </div>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn wide" id="pack-check" type="button">업데이트 확인</button>
+      <button class="btn primary wide" id="pack-update" type="button" data-lock hidden>받기</button>
+      <button class="btn wide" id="pack-remove" type="button" data-lock hidden>내장 프로필로 되돌리기</button>
+    </div>
+    <p class="hint" id="pack-hint"></p>
+  </section>
+
+  <section class="card">
+    <h2>현재 상태</h2>
+    <div class="kv">
+      <span>SIM1 EFS</span><span id="st-slot1">-</span>
+      <span>SIM2 EFS</span><span id="st-slot2">-</span>
+      <span>마지막 적용</span><span id="st-applied">-</span>
+      <span>EFS의 UA</span><span id="st-ua">-</span>
+      <span>MBN 자동 선택</span><span id="st-mcfg">-</span>
+      <span>SIM1 IMS</span><span id="st-ims1">-</span>
+      <span>SIM2 IMS</span><span id="st-ims2">-</span>
+    </div>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn" id="check" type="button">EFS 상태 확인</button>
+    </div>
+    <p class="hint" id="check-hint">모뎀 EFS를 읽어 어느 통신사 프로필이 들어 있는지 확인합니다. 쓰지 않습니다. IMS 등록 상태는 열 때마다 새로 읽습니다.</p>
+    <details class="diff" id="check-diff" hidden>
+      <summary></summary>
+      <div class="diff-list" id="check-diff-list"></div>
+    </details>
+  </section>
+
+  <section class="card testmode" id="testmode-card" hidden>
+    <h2>TEST MODE</h2>
+    <p class="testmode-msg">테스트 모드입니다.
+/sdcard/efsinject/SIM1
+/sdcard/efsinject/SIM2
+폴더에 efs 파일을 위치시키십시오. 폴더가 없으면 적용하지 않습니다.
+테스트 모드를 중단하려면 /sdcard/.efstestmode 파일을 삭제하십시오.</p>
+    <div class="kv">
+      <span>SIM1 폴더</span><span id="test-sim1">-</span>
+      <span>SIM2 폴더</span><span id="test-sim2">-</span>
+    </div>
+    <div class="test-ua" id="test-ua1" hidden>
+      <div class="test-ua-label">SIM1: 폴더의 ims_user_agent를 사용합니다.</div>
+      <div class="ua" id="test-ua1-text"></div>
+    </div>
+    <div class="test-ua" id="test-ua2" hidden>
+      <div class="test-ua-label">SIM2: 폴더의 ims_user_agent를 사용합니다.</div>
+      <div class="ua" id="test-ua2-text"></div>
+    </div>
+    <p class="hint">SIM2 파일은 이름이 _Subscription01로 끝나면 그대로, 아니면 붙여서 씁니다.</p>
+  </section>
+
+  <section class="card" id="carrier-card" data-lock>
+    <h2>SIM별 통신사</h2>
+    <div class="sim">
+      <div class="sim-label">SIM 1</div>
+      <div class="seg" data-sim="1"></div>
+    </div>
+    <div class="sim">
+      <div class="sim-label">SIM 2</div>
+      <div class="seg" data-sim="2"></div>
+    </div>
+  </section>
+
+  <section class="card" id="ua-card" data-lock>
+    <h2>ims_user_agent</h2>
+    <label class="check">
+      <input type="checkbox" id="opt-ua" checked>
+      <span>UA 자동 생성<small>TTA-VoLTE/3.0 기기명/빌드 Device_Type/Android_Phone 통신사</small></span>
+    </label>
+    <div id="ua-test-carrier" hidden>
+      <p class="hint">테스트 모드: 폴더에 ims_user_agent가 없는 SIM에만 생성합니다. UA 끝에 붙일 통신사를 고르세요("없음"이면 생성하지 않습니다).</p>
+      <div class="sim" id="ua-carrier1">
+        <div class="sim-label">SIM 1 UA 통신사</div>
+        <div class="seg" data-sim="1"></div>
+      </div>
+      <div class="sim" id="ua-carrier2">
+        <div class="sim-label">SIM 2 UA 통신사</div>
+        <div class="seg" data-sim="2"></div>
+      </div>
+    </div>
+    <label class="field">기기명
+      <input type="text" id="name" maxlength="64" autocomplete="off">
+    </label>
+    <div id="ua1" class="ua" hidden></div>
+    <div id="ua2" class="ua" hidden></div>
+  </section>
+
+  <section class="card" data-lock>
+    <h2>MBN 자동 선택 (mcfg_autoselect_by_uim)</h2>
+    <div class="sim">
+      <div class="sim-label">SIM 1 <small class="path">mcfg_autoselect_by_uim</small></div>
+      <div class="seg seg3" data-mcfg="1"></div>
+    </div>
+    <div class="sim">
+      <div class="sim-label">SIM 2 <small class="path">mcfg_autoselect_by_uim_Subscription01</small></div>
+      <div class="seg seg3" data-mcfg="2"></div>
+    </div>
+    <p class="hint">그대로: 건드리지 않음 · 잠금: 0바이트로 써서 SIM에 따른 MBN 자동 전환을 막고 현재 프로필로 고정 · 해제: 순정 값(1바이트 0x05)으로 되돌려 자동 전환을 다시 켬. 통신사 선택과 따로 적용됩니다.</p>
+  </section>
+
+  <section class="card" data-lock>
+    <h2>옵션</h2>
+    <label class="check">
+      <input type="checkbox" id="opt-volte" checked>
+      <span>VoLTE 표시 속성 켜기<small>persist.dbg.ims/volte/vt/wfc_avail_ovr = 1</small></span>
+    </label>
+    <label class="check">
+      <input type="checkbox" id="opt-nv">
+      <span>NvItem 항목도 쓰기 (실험적)<small>원래 도구는 NV 쓰기 실패를 무시합니다. 꼭 필요할 때만 켜세요.</small></span>
+    </label>
+    <label class="check">
+      <input type="checkbox" id="opt-auto">
+      <span>modem 초기화 감지시 자동으로 다시 패치 (실험적)<small>부팅할 때마다 마지막으로 성공한 패치를 모뎀에서 읽어 비교합니다. 펌웨어 플래싱 등으로 모뎀이 초기화되었거나 펌웨어 업데이트로 빌드가 바뀌었으면 달라진 파일만 다시 씁니다. 빌드가 바뀐 경우 ims_user_agent의 빌드 번호도 새 값으로 바꿉니다. 로밍·다른 SIM으로 모뎀이 프로필을 바꾼 경우는 초기화로 보지 않습니다. 다시 쓴 내용이 다음 부팅에서 또 사라져 있으면 더 이상 시도하지 않습니다.</small></span>
+    </label>
+    <label class="check">
+      <input type="checkbox" id="opt-autosim">
+      <span>SIM 통신사 감지 시 자동 패치 (실험적)<small>부팅할 때와 켜진 상태에서 SIM을 교체했을 때 꽂힌 SIM의 통신사(MCC/MNC)를 읽어, 마지막으로 적용한 통신사와 다르면 그 통신사 프로필로 적용합니다. 다른 옵션은 마지막 적용 값을 그대로 씁니다. 해외 SIM·빈 슬롯은 건드리지 않고, 로밍 중에도 바뀌지 않습니다. 테스트 모드로 적용한 상태에서는 동작하지 않습니다. 적용 후 재부팅해야 반영되며, MBN 잠금과 함께 쓰는 것을 권장합니다.</small></span>
+    </label>
+    <p class="hint" id="auto-status"></p>
+  </section>
+
+  <section class="card">
+    <div class="actions">
+      <button class="btn primary wide" id="apply" data-lock>적용</button>
+      <button class="btn" id="probe">연결 확인</button>
+      <button class="btn" id="restore" data-lock>마지막 적용 되돌리기</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>진행 상황</h2>
+    <div id="status" class="status">대기 중</div>
+    <pre class="log" id="log"></pre>
+  </section>
+</main>
+
+<script>
+  const CTL = "sh /data/adb/modules/efsprofile_kr/efsctl.sh";
+  const CARRIERS = [["NONE", "없음"], ["SKT", "SKT"], ["KT", "KT"], ["LGU", "LG U+"]];
+  const MCFG_MODES = [["keep", "그대로"], ["lock", "잠금"], ["unlock", "해제"]];
+  const state = {
+    sim1: "NONE", sim2: "NONE", mcfg1: "keep", mcfg2: "keep",
+    testMode: false, needUa: { 1: false, 2: false },
+    defaultName: "", build: "", busy: false,
+  };
+  let cbSeq = 0;
+  let pollTimer = null;
+
+  // The manager's exec bridge sometimes never calls back. With timeoutMs the
+  // promise resolves with errno -2 instead of hanging; a late callback is ignored.
+  function exec(cmd, timeoutMs) {
+    return new Promise((resolve) => {
+      if (typeof ksu === "undefined") {
+        resolve({ errno: -1, stdout: "", stderr: "ksu unavailable" });
+        return;
+      }
+      const name = "__efs_cb" + Date.now().toString(36) + "_" + cbSeq++;
+      let timer = null;
+      window[name] = (errno, stdout, stderr) => {
+        if (timer) clearTimeout(timer);
+        window[name] = () => {};
+        resolve({ errno, stdout: stdout || "", stderr: stderr || "" });
+      };
+      if (timeoutMs) timer = setTimeout(() => {
+        window[name] = () => {};
+        resolve({ errno: -2, stdout: "", stderr: "timeout" });
+      }, timeoutMs);
+      try {
+        ksu.exec(cmd, "{}", name);
+      } catch (e) {
+        if (timer) clearTimeout(timer);
+        resolve({ errno: -3, stdout: "", stderr: String(e) });
+      }
+    });
+  }
+
+  function toast(msg) {
+    if (typeof ksu !== "undefined" && ksu.toast) ksu.toast(msg);
+  }
+
+  function q(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
+
+  function parseKv(text) {
+    const out = {};
+    for (const line of text.split("\n")) {
+      const i = line.indexOf("=");
+      if (i > 0) out[line.slice(0, i)] = line.slice(i + 1);
+    }
+    return out;
+  }
+
+  function renderMcfg() {
+    document.querySelectorAll(".seg[data-mcfg]").forEach((seg) => {
+      const key = "mcfg" + seg.dataset.mcfg;
+      seg.innerHTML = "";
+      for (const [code, label] of MCFG_MODES) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = label;
+        b.setAttribute("aria-pressed", String(state[key] === code));
+        b.onclick = () => { state[key] = code; renderMcfg(); };
+        seg.appendChild(b);
+      }
+    });
+  }
+
+  function renderSeg() {
+    document.querySelectorAll(".seg[data-sim]").forEach((seg) => {
+      const sim = seg.dataset.sim;
+      seg.innerHTML = "";
+      for (const [code, label] of CARRIERS) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = label;
+        b.setAttribute("aria-pressed", String(state["sim" + sim] === code));
+        b.onclick = () => { state["sim" + sim] = code; renderSeg(); renderUa(); };
+        seg.appendChild(b);
+      }
+    });
+  }
+
+  const CHANNELS = [["stable", "안정"], ["lab", "실험"]];
+  let packChannel = "stable";
+
+  function renderChannel() {
+    const seg = document.getElementById("pack-channel");
+    seg.innerHTML = "";
+    for (const [code, label] of CHANNELS) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = label;
+      b.setAttribute("aria-pressed", String(packChannel === code));
+      b.onclick = () => setChannel(code);
+      seg.appendChild(b);
+    }
+    renderPackHint();
+  }
+
+  // Saved right away (it is not part of the carrier config); then checks the
+  // new channel, since that is why the user switched.
+  async function setChannel(code) {
+    if (code === packChannel || !initDone) return;
+    const r = await exec(CTL + " pack-channel " + code, 10000);
+    if (!r.stdout.includes("PACK_CHANNEL=" + code)) { toast("채널을 바꾸지 못했습니다"); return; }
+    packChannel = code;
+    renderChannel();
+    toast(code === "lab" ? "실험 채널: -LAB 릴리스까지 받습니다" : "안정 채널: -LAB 릴리스는 받지 않습니다");
+    document.getElementById("pack-check").click();
+  }
+
+  function deviceName() {
+    return document.getElementById("name").value.trim() || state.defaultName;
+  }
+
+  // In test mode a UA is generated only for slots whose inject folder has none.
+  function uaSlotActive(sim) {
+    return !state.testMode || state.needUa[sim];
+  }
+
+  function renderUa() {
+    const on = document.getElementById("opt-ua").checked;
+    for (const sim of ["1", "2"]) {
+      const el = document.getElementById("ua" + sim);
+      const carrier = state["sim" + sim];
+      el.hidden = !on || carrier === "NONE" || !uaSlotActive(sim);
+      el.textContent = `SIM${sim}: TTA-VoLTE/3.0 ${deviceName()}/${state.build} Device_Type/Android_Phone ${carrier}`;
+    }
+  }
+
+  function setBusy(busy) {
+    state.busy = busy;
+    for (const id of ["apply", "probe", "restore"]) document.getElementById(id).disabled = busy;
+  }
+
+  function showResult(log) {
+    const el = document.getElementById("status");
+    const m = log.match(/RESULT=(\S+)/g);
+    const last = m ? m[m.length - 1].slice(7) : "";
+    const exit = (log.match(/=== exit (\d+)/) || [])[1];
+    el.className = "status";
+    if (state.busy) {
+      el.textContent = "실행 중…";
+    } else if (last.startsWith("OK") || last === "RESTORED") {
+      el.className = "status ok";
+      el.textContent = "완료: " + last + " — 10초쯤 기다린 뒤 재부팅하세요.";
+    } else if (last || (exit && exit !== "0")) {
+      el.className = "status err";
+      el.textContent = "실패: " + (last || "exit " + exit);
+    } else {
+      el.textContent = "대기 중";
+    }
+  }
+
+  async function poll() {
+    const r = await exec(CTL + " status");
+    const [head, ...rest] = r.stdout.split("\n---\n");
+    const busy = parseKv(head).BUSY === "1";
+    const log = rest.join("\n---\n");
+    const pre = document.getElementById("log");
+    const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 8;
+    pre.textContent = log;
+    if (atBottom) pre.scrollTop = pre.scrollHeight;
+    setBusy(busy);
+    showResult(log);
+    if (!busy && pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+      loadInfo();
+    }
+  }
+
+  function startPolling() {
+    if (!pollTimer) pollTimer = setInterval(poll, 1000);
+    poll();
+  }
+
+  async function saveConfig() {
+    // Saving before the stored config is loaded would overwrite it with defaults.
+    if (!initDone) { toast("기기 정보를 먼저 불러와야 합니다"); return false; }
+    const name = document.getElementById("name").value.trim();
+    const flag = (id) => (document.getElementById(id).checked ? "1" : "0");
+    const cmd = [CTL, "save", state.sim1, state.sim2, q(name), flag("opt-ua"), flag("opt-nv"), flag("opt-volte"), state.mcfg1, state.mcfg2, flag("opt-auto"), flag("opt-autosim")].join(" ");
+    const r = await exec(cmd);
+    if (!r.stdout.includes("SAVED")) {
+      toast(r.stdout.trim() || "설정 저장 실패");
+      return false;
+    }
+    return true;
+  }
+
+  async function start(action) {
+    const r = await exec(CTL + " start " + action);
+    if (!r.stdout.includes("STARTED")) {
+      toast(r.stdout.includes("BUSY") ? "이미 실행 중입니다" : "시작 실패");
+      return;
+    }
+    setBusy(true);
+    startPolling();
+  }
+
+  document.getElementById("apply").onclick = async () => {
+    // Re-read the flag file so the dialog matches what efsctl will do.
+    if (!initDone) { toast("기기 정보를 먼저 불러와야 합니다"); init(); return; }
+    const info = await loadInfo();
+    if (!info) { toast("기기 정보를 불러오지 못했습니다. 다시 눌러 주세요."); return; }
+    const mode = (m) => MCFG_MODES.find((x) => x[0] === m)[1];
+    let summary;
+    if (state.testMode) {
+      const has1 = info.TEST_SIM1 === "1", has2 = info.TEST_SIM2 === "1";
+      if (!has1 && !has2 && state.mcfg1 === "keep" && state.mcfg2 === "keep") {
+        toast("efsinject 폴더가 없습니다");
+        return;
+      }
+      const uaOn = document.getElementById("opt-ua").checked;
+      const slot = (sim, has) => {
+        if (!has) return "폴더 없음, 건너뜀";
+        if (info["TEST_UA" + sim] === "1") return "폴더 적용, UA는 폴더 파일";
+        if (uaOn && state["sim" + sim] !== "NONE") return `폴더 적용, UA 생성(${state["sim" + sim]})`;
+        return "폴더 적용, UA 없음";
+      };
+      summary = `[테스트 모드]\nSIM1: ${slot("1", has1)} (MBN ${mode(state.mcfg1)})\nSIM2: ${slot("2", has2)} (MBN ${mode(state.mcfg2)})`;
+    } else {
+      if (state.sim1 === "NONE" && state.sim2 === "NONE" && state.mcfg1 === "keep" && state.mcfg2 === "keep") {
+        toast("통신사나 MBN 자동 선택 중 하나 이상 바꾸세요");
+        return;
+      }
+      const label = (c) => (CARRIERS.find((x) => x[0] === c) || [, c])[1];
+      summary = `SIM1: ${label(state.sim1)} (MBN ${mode(state.mcfg1)})\nSIM2: ${label(state.sim2)} (MBN ${mode(state.mcfg2)})`;
+    }
+    if (!confirm(`${summary}\n모뎀 EFS에 씁니다. 기존 값은 자동 백업됩니다. 계속할까요?`)) return;
+    if (await saveConfig()) start("apply");
+  };
+  document.getElementById("probe").onclick = () => start("probe");
+  document.getElementById("restore").onclick = () => {
+    if (confirm("마지막으로 적용하기 전 상태로 EFS를 되돌릴까요?")) start("restore");
+  };
+  document.getElementById("name").oninput = renderUa;
+  document.getElementById("opt-ua").onchange = renderUa;
+  // The boot check reads the stored config, so save this switch right away.
+  document.getElementById("opt-auto").onchange = async (e) => {
+    if (await saveConfig()) toast(e.target.checked ? "모뎀 초기화 자동 패치를 켰습니다." : "모뎀 초기화 자동 패치를 껐습니다.");
+    else e.target.checked = !e.target.checked;
+  };
+  document.getElementById("opt-autosim").onchange = async (e) => {
+    if (!(await saveConfig())) {
+      e.target.checked = !e.target.checked;
+      return;
+    }
+    if (e.target.checked) {
+      // Start the SIM swap watcher now instead of waiting for the next boot.
+      await exec(CTL + " simwatch-start");
+      toast("SIM 통신사 감지 자동 패치를 켰습니다. 켜진 상태의 SIM 교체도 감지합니다.");
+    } else {
+      await exec(CTL + " simwatch-stop");
+      toast("SIM 통신사 감지 자동 패치를 껐습니다.");
+    }
+    setTimeout(loadInfo, 1500);
+  };
+
+  // info takes ~0.15 s on the device; retry when the bridge drops the callback.
+  async function fetchInfo() {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = await exec(CTL + " info", 6000);
+      const info = parseKv(r.stdout);
+      if (info.MODEL !== undefined) return info;
+      await new Promise((ok) => setTimeout(ok, 500));
+    }
+    return null;
+  }
+
+  async function loadInfo() {
+    const info = await fetchInfo();
+    if (!info) return null;
+    document.getElementById("model").textContent = info.MODEL || "-";
+    document.getElementById("build").textContent = info.BUILD || "-";
+    document.getElementById("platform").textContent = info.PLATFORM || "-";
+    document.getElementById("efsversion").textContent = info.EFS_VERSION || "알 수 없음";
+    document.getElementById("efssource").textContent = info.EFS_SOURCE || "-";
+    const label = { SKT: "SKT", KT: "KT", LGU: "LG U+" };
+    document.getElementById("simdetect").textContent = ["1", "2"].map((s) => {
+      const [carrier, plmn, simState, alpha] = (info["SIM_DETECT" + s] || "").split("|");
+      if (carrier) return "SIM" + s + " " + label[carrier] + " (" + plmn + ")";
+      if (simState === "LOADED") return "SIM" + s + " " + (alpha || "?") + " (" + (plmn || "-") + ", 대상 아님)";
+      return "SIM" + s + " " + (simState || "없음");
+    }).join(" · ") + (info.SIMWATCH === "1" ? " · 교체 감시 중" : "");
+    document.getElementById("partbackup").textContent = (info.PARTITION_BACKUP || "").trim() || "없음";
+    document.getElementById("lastresult").textContent = info.LAST_RESULT || "-";
+    document.getElementById("efstrigger").hidden = info.EFSTRIGGER !== "1";
+    // Companion app: linked = installed; integrated = settings belong to the app.
+    const integrated = info.INTEGRATED === "1";
+    document.body.classList.toggle("locked", integrated);
+    document.getElementById("integrated").hidden = !integrated;
+    document.getElementById("applink").hidden = integrated || info.APP_LINKED !== "1";
+    state.testMode = info.TESTMODE === "1";
+    document.getElementById("testmode-card").hidden = !state.testMode;
+    document.getElementById("carrier-card").hidden = state.testMode;
+    const folder = (v) => (v === "1" ? "있음" : "없음 (건너뜀)");
+    for (const sim of ["1", "2"]) {
+      const hasFolder = info["TEST_SIM" + sim] === "1";
+      const hasUa = hasFolder && info["TEST_UA" + sim] === "1";
+      state.needUa[sim] = hasFolder && !hasUa;
+      document.getElementById("test-sim" + sim).textContent = folder(info["TEST_SIM" + sim]);
+      document.getElementById("test-ua" + sim).hidden = !hasUa;
+      document.getElementById("test-ua" + sim + "-text").textContent = info["TEST_UA" + sim + "_TEXT"] || "(빈 파일)";
+      document.getElementById("ua-carrier" + sim).hidden = !state.needUa[sim];
+    }
+    document.getElementById("ua-card").hidden = state.testMode && !state.needUa["1"] && !state.needUa["2"];
+    document.getElementById("ua-test-carrier").hidden = !state.testMode;
+    document.getElementById("export-hint").textContent = info.EXPORT_AT
+      ? "마지막 내보내기: " + info.EXPORT_AT + " · /sdcard/efsprofile_backup"
+      : "백업은 /data에 있어서 기기를 초기화하면 사라집니다. 한 번 내보내 PC 등에 보관하세요.";
+    renderCheck(info);
+    renderPack(info);
+    renderUa();
+    return info;
+  }
+
+  const isLab = (tag) => /-LAB$/.test(tag || "");
+
+  function packLabel(version, tag) {
+    return (version || "알 수 없음") + (tag ? " (" + tag + ")" : "") + (isLab(tag) ? " · 실험" : "");
+  }
+
+  function renderPack(info) {
+    const fromPack = info.EFS_FROM === "pack";
+    document.getElementById("efsversion").textContent =
+      (info.EFS_VERSION || "알 수 없음") + (fromPack ? " · GitHub " + (info.EFS_TAG || "") : " · 모듈 내장");
+    document.getElementById("pack-current").textContent =
+      packLabel(info.EFS_VERSION, info.EFS_TAG) + (fromPack ? " · 받은 팩" : " · 모듈 내장");
+    document.getElementById("pack-remove").hidden = !fromPack;
+    packChannel = info.PACK_CHANNEL === "lab" ? "lab" : "stable";
+    packRepo = info.PACK_REPO || "";
+    renderChannel();
+  }
+
+  let packRepo = "";
+
+  function renderPackHint() {
+    document.getElementById("pack-hint").textContent =
+      (packChannel === "lab"
+        ? "실험 채널: 태그가 -LAB으로 끝나는 실험 릴리스까지 받습니다. 그 버전이 안정 릴리스보다 높을 때만 받고, 아니면 안정 릴리스를 받습니다. 검증이 덜 된 프로필일 수 있습니다. "
+        : "안정 채널: -LAB 릴리스는 받지 않습니다. ")
+      + "저장소: github.com/" + packRepo + " · 받기만 하고 모뎀에는 쓰지 않습니다. 받은 뒤 \"적용\"을 눌러야 모뎀에 반영됩니다.";
+  }
+
+  let remoteTag = "";
+
+  document.getElementById("pack-check").onclick = async (e) => {
+    e.target.disabled = true;
+    const remote = document.getElementById("pack-remote");
+    remote.textContent = "확인 중…";
+    document.getElementById("pack-update").hidden = true;
+    const r = await exec(CTL + " pack-check", 45000);
+    e.target.disabled = false;
+    const p = parseKv(r.stdout);
+    if (p.PACK_CHECK !== "OK") {
+      remote.textContent = r.errno === -2 ? "응답 없음" : "확인 실패 (네트워크를 확인하세요)";
+      return;
+    }
+    remoteTag = p.REMOTE_TAG;
+    let text = packLabel(p.REMOTE_VERSION, p.REMOTE_TAG) + (p.REMOTE_DATE ? " · " + p.REMOTE_DATE : "");
+    // Lab channel without a -LAB release newer than stable: say so, and offer
+    // the stable release instead.
+    if (p.LAB_NONE === "1") text = "현재 테스트중인 릴리즈가 없습니다. · 안정 " + text;
+    if (p.PACK_SWITCH === "1") text += " · 안정 버전으로 되돌릴 수 있음";
+    else if (p.PACK_UPDATE === "1") text += " · 받을 수 있음";
+    else if (p.PACK_OLDER === "1") text += " · 사용 중인 팩이 더 새로움";
+    else text += " · 최신 상태";
+    remote.textContent = text;
+    const btn = document.getElementById("pack-update");
+    btn.hidden = p.PACK_UPDATE !== "1";
+    btn.textContent = packLabel(p.REMOTE_VERSION, p.REMOTE_TAG) + " 받기";
+  };
+
+  document.getElementById("pack-update").onclick = async (e) => {
+    if (!remoteTag) return;
+    if (state.busy) { toast("다른 작업이 실행 중입니다"); return; }
+    if (!confirm(remoteTag + " 릴리스를 받아 EFS 프로필 팩으로 씁니다.\n모든 파일을 GitHub의 파일 목록(해시)과 대조하고, 하나라도 다르면 설치하지 않습니다.\n모뎀에는 쓰지 않습니다. 반영하려면 받은 뒤 \"적용\"을 누르세요.\n계속할까요?")) return;
+    e.target.disabled = true;
+    document.getElementById("pack-remote").textContent = "받는 중… (파일 검증 포함, 1분 정도 걸릴 수 있습니다)";
+    const r = await exec(CTL + " pack-update " + q(remoteTag), 180000);
+    e.target.disabled = false;
+    document.getElementById("log").textContent = r.stdout;
+    const m = r.stdout.match(/PACK_RESULT=OK (\S+) (\S+)/);
+    if (m) {
+      toast("EFS 프로필 " + m[2] + " (" + m[1] + ")을 받았습니다. 적용을 눌러야 모뎀에 반영됩니다.");
+      e.target.hidden = true;
+      document.getElementById("pack-remote").textContent = packLabel(m[2], m[1]) + " · 받음";
+    } else {
+      toast(r.errno === -2 ? "응답이 없습니다. 잠시 뒤 다시 확인하세요." : "받지 못했습니다. 진행 상황 로그를 확인하세요.");
+      document.getElementById("pack-remote").textContent = "받기 실패";
+    }
+    await loadInfo();
+  };
+
+  document.getElementById("pack-remove").onclick = async () => {
+    if (!confirm("받은 EFS 프로필 팩을 지우고 모듈에 내장된 프로필을 씁니다. 모뎀에는 쓰지 않습니다. 계속할까요?")) return;
+    const r = await exec(CTL + " pack-remove", 15000);
+    toast(r.stdout.includes("REMOVED") ? "모듈 내장 프로필로 되돌렸습니다" : "되돌리지 못했습니다");
+    await loadInfo();
+  };
+
+  const CARRIER_LABEL = { SKT: "SKT", KT: "KT", LGU: "LG U+" };
+
+  function slotText(c, m, n) {
+    if (!c) return "판단할 수 없음";
+    m = +m; n = +n;
+    if (m === n) return CARRIER_LABEL[c] + " 프로필과 일치 (" + m + "/" + n + ")";
+    if (m * 2 < n) return "어느 통신사 프로필과도 맞지 않음 (가장 가까운 " + CARRIER_LABEL[c] + " " + m + "/" + n + ")";
+    return CARRIER_LABEL[c] + " 프로필에 가까움 (" + m + "/" + n + " 일치)";
+  }
+
+  function mcfgText(v) {
+    if (v === "lock") return "잠금";
+    if (v === "unlock") return "해제 (자동 전환)";
+    if (v === "none") return "파일 없음";
+    if (v && v.startsWith("other:")) return "기타 값 0x" + v.slice(6);
+    return "-";
+  }
+
+  function renderCheck(info) {
+    const set = (id, text) => { document.getElementById(id).textContent = text; };
+    const ims = (v) => (v === "true" ? "등록됨" : v === "false" ? "등록 안 됨" : "알 수 없음");
+    set("st-ims1", ims(info.IMS1));
+    set("st-ims2", ims(info.IMS2));
+    if (info.CHECK_RESULT !== "OK") {
+      for (const id of ["st-slot1", "st-slot2", "st-applied", "st-ua", "st-mcfg"]) set(id, "확인 전");
+      document.getElementById("check-diff").hidden = true;
+      return;
+    }
+    set("st-slot1", slotText(info.SLOT1_CARRIER, info.SLOT1_MATCH, info.SLOT1_TOTAL));
+    set("st-slot2", slotText(info.SLOT2_CARRIER, info.SLOT2_MATCH, info.SLOT2_TOTAL));
+    const total = +(info.APPLIED_TOTAL || 0), match = +(info.APPLIED_MATCH || 0);
+    let applied;
+    if (!total) applied = "기록 없음";
+    else if (match === total) applied = "그대로 유지됨";
+    else if (!info.MARKER) applied = "사라짐 (모뎀 EFS 초기화로 보입니다)";
+    else applied = match + "/" + total + " 파일 일치 (모뎀이 일부를 바꿨습니다)";
+    set("st-applied", applied);
+    const build = info.BUILD || "";
+    const uaState = (ua) => {
+      if (!ua) return "없음";
+      return build && ua.includes("/" + build + " ") ? "현재 빌드" : "다른 빌드 번호";
+    };
+    set("st-ua", "SIM1 " + uaState(info.UA_EFS1) + " · SIM2 " + uaState(info.UA_EFS2));
+    set("st-mcfg", "SIM1 " + mcfgText(info.MCFG_EFS1) + " · SIM2 " + mcfgText(info.MCFG_EFS2));
+    let hint = "확인 시각: " + (info.CHECK_AT || "-");
+    if (+(info.CHECK_ERRORS || 0) > 0) hint += " · 읽지 못한 파일 " + info.CHECK_ERRORS + "개";
+    set("check-hint", hint);
+    // Long EFS paths stay folded until the summary is tapped.
+    const paths = (info.APPLIED_DIFF || "").trim().split(/\s+/).filter(Boolean);
+    const diff = document.getElementById("check-diff");
+    diff.hidden = paths.length === 0;
+    if (paths.length) {
+      const count = total - match;
+      diff.querySelector("summary").textContent = "마지막 적용과 달라진 파일 " + count + "개 보기"
+        + (count > paths.length ? " (" + paths.length + "개까지 표시)" : "");
+      document.getElementById("check-diff-list").textContent = paths.join("\n");
+    }
+  }
+
+  document.getElementById("check").onclick = async (e) => {
+    if (state.busy) { toast("다른 작업이 실행 중입니다"); return; }
+    e.target.disabled = true;
+    document.getElementById("check-hint").textContent = "모뎀 EFS를 읽는 중… (몇 초 걸립니다)";
+    const r = await exec(CTL + " check", 60000);
+    e.target.disabled = false;
+    const res = parseKv(r.stdout).CHECK_RESULT;
+    if (res === "BUSY") toast("다른 작업이 실행 중입니다");
+    else if (res !== "OK") toast(r.errno === -2 ? "결과를 받지 못했습니다. 다시 눌러 주세요." : "diag에 연결하지 못했습니다");
+    await loadInfo();
+  };
+
+  document.getElementById("export").onclick = async (e) => {
+    if (!confirm("설치 때 떠 둔 모뎀 파티션 이미지를 /sdcard/efsprofile_backup 에 복사합니다.\n이 파일에는 IMEI 등 기기 고유 정보가 들어 있으니 다른 사람과 공유하지 마세요.\n계속할까요?")) return;
+    e.target.disabled = true;
+    const r = await exec(CTL + " export", 60000);
+    e.target.disabled = false;
+    const m = r.stdout.match(/EXPORTED=(\d+) (\S+)/);
+    toast(m ? m[1] + "개 이미지를 " + m[2] + "에 내보냈습니다 (SHA-256 확인 완료)" : (r.stdout.trim() || "내보내기 실패"));
+    loadInfo();
+  };
+
+  let initDone = false;
+  async function init() {
+    if (initDone) return;
+    const loading = document.getElementById("loading");
+    const loadfail = document.getElementById("loadfail");
+    loadfail.hidden = true;
+    loading.hidden = false;
+    let info = null;
+    try { info = await loadInfo(); } catch (e) { info = null; }
+    loading.hidden = true;
+    if (!info) { loadfail.hidden = false; return; }
+    initDone = true;
+    applyInfo(info);
+  }
+
+  function applyInfo(info) {
+    state.defaultName = info.DEFAULT_NAME || "";
+    state.build = info.BUILD || "";
+    if (info.SIM1) state.sim1 = info.SIM1;
+    if (info.SIM2) state.sim2 = info.SIM2;
+    if (info.MCFG1) state.mcfg1 = info.MCFG1;
+    if (info.MCFG2) state.mcfg2 = info.MCFG2;
+    const nameEl = document.getElementById("name");
+    nameEl.placeholder = state.defaultName;
+    nameEl.value = info.NAME || "";
+    if (info.UA) document.getElementById("opt-ua").checked = info.UA === "1";
+    if (info.NV) document.getElementById("opt-nv").checked = info.NV === "1";
+    if (info.VOLTE) document.getElementById("opt-volte").checked = info.VOLTE === "1";
+    if (info.AUTO) document.getElementById("opt-auto").checked = info.AUTO === "1";
+    if (info.AUTOSIM) document.getElementById("opt-autosim").checked = info.AUTOSIM === "1";
+    let autoText;
+    if (info.AUTO_ARMED !== "1") autoText = "비교할 패치가 없습니다. 한 번 적용에 성공하면 그 내용을 기준으로 삼습니다.";
+    else if (info.AUTO_GAVEUP === "1") autoText = "다시 패치해도 유지되지 않아 자동 패치를 멈췄습니다. 수동으로 적용하면 다시 시작합니다.";
+    else autoText = "기준 패치: " + (info.AUTO_ARMED_AT || "-") + " 적용분";
+    if (info.AUTO_LAST) {
+      const kinds = { ok: "재패치 성공", fail: "재패치 실패", sim_ok: "SIM 변경 패치 성공", sim_fail: "SIM 변경 패치 실패" };
+      autoText += " · 마지막 자동 패치: " + info.AUTO_LAST.replace(/ (sim_ok|sim_fail|ok|fail)$/, (m, k) => " " + kinds[k]);
+    }
+    document.getElementById("auto-status").textContent = autoText;
+    // The boot hook stores the full notice text; show it once, then clear it.
+    if (info.AUTO_NOTICE) {
+      toast(info.AUTO_NOTICE);
+      exec(CTL + " ack");
+    }
+    renderSeg();
+    renderMcfg();
+    renderUa();
+    if (info.BUSY === "1") startPolling(); else poll();
+  }
+
+  // Draw the controls first so the page is never blank, then fill them in.
+  if (typeof ksu === "undefined") document.getElementById("noksu").hidden = false;
+  renderSeg();
+  renderMcfg();
+  renderUa();
+  renderChannel();
+  document.getElementById("reload").onclick = init;
+  if (typeof ksu !== "undefined") init();
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+# LSPosed 앱 코드와 그 빌드 결과
+/lsposed/
+/dist/
+
+# 빌드 중간물
+/build/
