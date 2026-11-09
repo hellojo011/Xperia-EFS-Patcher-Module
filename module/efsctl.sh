@@ -2,7 +2,8 @@
 # EFS carrier profile controller (called by the WebUI and action.sh).
 #
 #   efsctl.sh info                 key=value device/config summary
-#   efsctl.sh save SIM1 SIM2 NAME UA NV VOLTE [MCFG1 MCFG2 [AUTO [AUTOSIM]]]
+#   efsctl.sh save SIM1 SIM2 NAME UA NV VOLTE [MCFG1 MCFG2 [AUTO [AUTOSIM [GBAND]]]]
+#                                  (GBAND left out: the saved value is kept)
 #   efsctl.sh preview              print generated ims_user_agent strings
 #   efsctl.sh start apply|probe|restore [tx]
 #   efsctl.sh status               state + log tail
@@ -59,6 +60,10 @@ MCFG1=keep
 MCFG2=keep
 AUTO=0
 AUTOSIM=0
+# Global band set: policyman/band_set_01.xml from profiles/GLOBAL instead of
+# the carrier's own (for use outside Korea).
+GBAND=0
+GBAND_TARGET=/policyman/band_set_01.xml
 TAB=$(printf '\t')
 
 # Modem reset check: exact copy of the last successful patch, replayed at boot
@@ -70,13 +75,41 @@ AUTO_NOTICE=$STATE/auto_notice
 AUTO_LAST=$STATE/auto_last
 AUTO_LOG=$STATE/auto.log
 MARKER_PATH=/efsprofile_kr/applied
-MSG_REPATCH_OK="모뎀 파티션의 변경이 감지되어 다시 패치를 성공하였습니다. 10초 뒤 기기를 재시작하세요."
-MSG_REPATCH_FAIL="모뎀 파티션의 변경이 감지되어 패치를 시도하였으나 실패하였습니다. /sdcard/efsprofile_failed.log 로그를 확인하세요."
 # SIM carrier detection: target (SIM1 SIM2) of a failed automatic apply, so it
 # is not retried on every boot.
 AUTOSIM_FAILED=$STATE/autosim_failed
 SIMWATCH_PID=$STATE/simwatch.pid
-MSG_SIM_FAIL="SIM 통신사 변경이 감지되어 패치를 시도하였으나 실패하였습니다. /sdcard/efsprofile_failed.log 로그를 확인하세요."
+
+# Notification texts in the system language (ko, ru, zh, else English).
+ui_lang() {
+  local l
+  l=$(getprop persist.sys.locale)
+  [ -n "$l" ] || l=$(getprop ro.product.locale)
+  case "$l" in ko*) echo ko ;; ru*) echo ru ;; zh*) echo zh ;; *) echo en ;; esac
+}
+
+# msg repatch_ok | repatch_fail | sim_fail | sim_ok SIM1 SIM2
+msg() {
+  local log=/sdcard/efsprofile_failed.log
+  case "$(ui_lang)/$1" in
+    ko/repatch_ok) echo "모뎀 파티션의 변경이 감지되어 다시 패치를 성공하였습니다. 10초 뒤 기기를 재시작하세요." ;;
+    ko/repatch_fail) echo "모뎀 파티션의 변경이 감지되어 패치를 시도하였으나 실패하였습니다. $log 로그를 확인하세요." ;;
+    ko/sim_fail) echo "SIM 통신사 변경이 감지되어 패치를 시도하였으나 실패하였습니다. $log 로그를 확인하세요." ;;
+    ko/sim_ok) echo "SIM 통신사 변경이 감지되어 패치를 적용하였습니다 (SIM1 $2, SIM2 $3). 10초 뒤 기기를 재시작하세요." ;;
+    ru/repatch_ok) echo "Обнаружено изменение разделов модема, запись успешно выполнена повторно. Перезагрузите устройство через 10 секунд." ;;
+    ru/repatch_fail) echo "Обнаружено изменение разделов модема, но повторная запись не удалась. Смотрите журнал $log." ;;
+    ru/sim_fail) echo "Обнаружена смена оператора SIM, но запись не удалась. Смотрите журнал $log." ;;
+    ru/sim_ok) echo "Обнаружена смена оператора SIM, профиль записан (SIM1 $2, SIM2 $3). Перезагрузите устройство через 10 секунд." ;;
+    zh/repatch_ok) echo "检测到调制解调器分区发生变化，已成功重新写入。请在 10 秒后重启设备。" ;;
+    zh/repatch_fail) echo "检测到调制解调器分区发生变化，尝试重新写入但失败。请查看日志 $log。" ;;
+    zh/sim_fail) echo "检测到 SIM 运营商变化，尝试写入但失败。请查看日志 $log。" ;;
+    zh/sim_ok) echo "检测到 SIM 运营商变化，已写入配置（SIM1 $2，SIM2 $3）。请在 10 秒后重启设备。" ;;
+    */repatch_ok) echo "A change of the modem partitions was detected and the patch was written again. Reboot the device in 10 seconds." ;;
+    */repatch_fail) echo "A change of the modem partitions was detected, but writing the patch again failed. See $log." ;;
+    */sim_fail) echo "A SIM carrier change was detected, but applying its profile failed. See $log." ;;
+    */sim_ok) echo "A SIM carrier change was detected and its profile was applied (SIM1 $2, SIM2 $3). Reboot the device in 10 seconds." ;;
+  esac
+}
 # Read-only status check result (dropped by every successful write).
 CHECK_OUT=$STATE/check.out
 # Companion app (LSPosed Settings page / standalone app). "integrated" lives in
@@ -113,7 +146,7 @@ load_config() {
     case "$key" in
       SIM1|SIM2) case "$value" in SKT|KT|LGU|NONE) eval "$key=\$value" ;; esac ;;
       NAME) NAME=$value ;;
-      UA|NV|VOLTE|AUTO|AUTOSIM) case "$value" in 0|1) eval "$key=\$value" ;; esac ;;
+      UA|NV|VOLTE|AUTO|AUTOSIM|GBAND) case "$value" in 0|1) eval "$key=\$value" ;; esac ;;
       MCFG1|MCFG2) case "$value" in keep|lock|unlock) eval "$key=\$value" ;; esac ;;
       # v0.1.3 stored one MCFG value for both slots.
       MCFG) case "$value" in keep|lock|unlock) MCFG1=$value; MCFG2=$value ;; esac ;;
@@ -175,6 +208,16 @@ ua_text() { tr -d '\000' < "$1" | tr '\r\n\t' '   ' | head -c 512; }
 # Version info of the EFS profile pack in use (info.prop: version, source, tag).
 efs_info() { prop_of "$PROFILES" "$1"; }
 
+# The global band set file: from the pack in use, else the one bundled in the
+# module (a downloaded pack may predate GLOBAL/).
+gband_file() {
+  local f
+  for f in "$PROFILES/GLOBAL/band_set_01.xml" "$MODDIR/profiles/GLOBAL/band_set_01.xml"; do
+    [ -s "$f" ] && { echo "$f"; return 0; }
+  done
+  return 1
+}
+
 app_installed() {
   local d
   for d in /data/app/*/"$APP_PKG"-*; do
@@ -234,6 +277,8 @@ cmd_info() {
   echo "AUTO_NOTICE=$(cat "$AUTO_NOTICE" 2>/dev/null)"
   echo "AUTO_LAST=$(cat "$AUTO_LAST" 2>/dev/null)"
   echo "AUTOSIM=$AUTOSIM"
+  echo "GBAND=$GBAND"
+  echo "GBAND_AVAILABLE=$(gband_file > /dev/null && echo 1 || echo 0)"
   echo "SIMWATCH=$(sim_watching && echo 1 || echo 0)"
   for slot in 1 2; do
     echo "SIM_DETECT$slot=$(detected_carrier "$slot")|$(sim_field gsm.sim.operator.numeric "$slot")|$(sim_field gsm.sim.state "$slot")|$(sim_field gsm.sim.operator.alpha "$slot")"
@@ -277,6 +322,12 @@ cmd_save() {
   done
   case "${9:-0}" in 0|1) ;; *) echo "ERROR invalid auto flag: $9"; return 1 ;; esac
   case "${10:-0}" in 0|1) ;; *) echo "ERROR invalid autosim flag: ${10}"; return 1 ;; esac
+  local gband=${11}
+  case "$gband" in
+    0|1) ;;
+    "") gband=$(sed -n 's/^GBAND=\([01]\)$/\1/p' "$CONFIG" 2>/dev/null | tail -n 1); gband=${gband:-0} ;;
+    *) echo "ERROR invalid global band flag: $gband"; return 1 ;;
+  esac
   {
     echo "SIM1=$1"
     echo "SIM2=$2"
@@ -288,6 +339,7 @@ cmd_save() {
     echo "MCFG2=${8:-keep}"
     echo "AUTO=${9:-0}"
     echo "AUTOSIM=${10:-0}"
+    echo "GBAND=$gband"
   } > "$CONFIG"
   echo "SAVED"
 }
@@ -394,13 +446,21 @@ build_plan() {
       return 1
     fi
   done
+  if [ "$GBAND" = 1 ] && ! gband_file > /dev/null; then
+    echo "ERROR global band set file missing (profiles/GLOBAL/band_set_01.xml)" >&2
+    return 1
+  fi
+  {
   for slot in 1 2; do
     emit_mcfg "$slot" "$tx"
     eval "carrier=\$SIM$slot"
     [ "$carrier" = NONE ] && continue
     emit_dir "$PROFILES/$carrier/sim$slot" 0 "$UA"
     [ "$UA" = 1 ] && emit_generated_ua "$slot" "$carrier" "$tx"
-  done | dedupe_plan
+  done
+  # Last, so it replaces the carriers' own band set (dedupe keeps the later).
+  [ "$GBAND" = 1 ] && printf 'E\t%s\t%s\n' "$GBAND_TARGET" "$(gband_file)"
+  } | dedupe_plan
 }
 
 prepare_runtime() {
@@ -447,7 +507,7 @@ run_apply() {
     done
     build_test_plan "$tx" > "$tx/plan.tsv" || return 1
   else
-    echo "SIM1=$SIM1 SIM2=$SIM2 UA=$UA NV=$NV VOLTE=$VOLTE MCFG1=$MCFG1 MCFG2=$MCFG2"
+    echo "SIM1=$SIM1 SIM2=$SIM2 UA=$UA NV=$NV VOLTE=$VOLTE MCFG1=$MCFG1 MCFG2=$MCFG2 GBAND=$GBAND"
     echo "EFS profiles: version=$(efs_info version) tag=$(efs_info tag) from=$PROFILES_FROM source=$(efs_info source)"
     [ "$UA" = 1 ] && cmd_preview
     build_plan "$tx" > "$tx/plan.tsv" || return 1
@@ -606,7 +666,7 @@ detected_carrier() {
 }
 
 carrier_label() {
-  case "$1" in LGU) echo "LG U+" ;; NONE) echo "없음" ;; *) echo "$1" ;; esac
+  case "$1" in LGU) echo "LG U+" ;; NONE) echo "-" ;; *) echo "$1" ;; esac
 }
 
 # Waits up to 2 minutes for every slot to leave NOT_READY/UNKNOWN.
@@ -663,7 +723,7 @@ auto_sim() {
     return 1
   fi
   auto_log "sim: carriers changed $from -> $SIM1/$SIM2 ($(getprop gsm.sim.operator.numeric))"
-  cmd_save "$SIM1" "$SIM2" "$NAME" "$UA" "$NV" "$VOLTE" "$MCFG1" "$MCFG2" "$AUTO" "$AUTOSIM" > /dev/null
+  cmd_save "$SIM1" "$SIM2" "$NAME" "$UA" "$NV" "$VOLTE" "$MCFG1" "$MCFG2" "$AUTO" "$AUTOSIM" "$GBAND" > /dev/null
   while is_busy; do sleep 10; done
   rm -rf "$LOCK"
   : > "$LOG"
@@ -672,10 +732,10 @@ auto_sim() {
   rc=$?
   auto_log "sim: apply rc=$rc result=$(cat "$STATE/last_result" 2>/dev/null)"
   if [ $rc -eq 0 ]; then
-    auto_notice sim_ok "SIM 통신사 변경이 감지되어 패치를 적용하였습니다 (SIM1 $(carrier_label "$SIM1"), SIM2 $(carrier_label "$SIM2")). 10초 뒤 기기를 재시작하세요."
+    auto_notice sim_ok "$(msg sim_ok "$(carrier_label "$SIM1")" "$(carrier_label "$SIM2")")"
   else
     echo "$target" > "$AUTOSIM_FAILED"
-    auto_notice sim_fail "$MSG_SIM_FAIL"
+    auto_notice sim_fail "$(msg sim_fail)"
   fi
   return 0
 }
@@ -852,7 +912,7 @@ auto_repatch() {
     auto_log "re-patched on the previous boot and lost again; not retrying"
     echo "Re-patched on the previous boot and lost again; not retrying." >> "$LOG"
     touch "$AUTO_GAVEUP"
-    auto_notice fail "$MSG_REPATCH_FAIL"
+    auto_notice fail "$(msg repatch_fail)"
     return 0
   fi
   # Only what differs; NV items are not read back, so they go along on a reset.
@@ -879,10 +939,10 @@ auto_repatch() {
     [ -n "$cur" ] && echo "$cur" > "$APPLIED_DIR/build"
     # Only a reset that comes back right away means the patch does not hold.
     if [ $reason = reset ]; then touch "$AUTO_GUARD"; else rm -f "$AUTO_GUARD"; fi
-    auto_notice ok "$MSG_REPATCH_OK"
+    auto_notice ok "$(msg repatch_ok)"
   else
     touch "$AUTO_GAVEUP"
-    auto_notice fail "$MSG_REPATCH_FAIL"
+    auto_notice fail "$(msg repatch_fail)"
   fi
 }
 
@@ -1078,7 +1138,7 @@ cmd_quickapply() {
       echo "ERROR no carrier to apply"
       return 1
     fi
-    cmd_save "$SIM1" "$SIM2" "$NAME" "$UA" "$NV" "$VOLTE" "$MCFG1" "$MCFG2" "$AUTO" "$AUTOSIM" > /dev/null || return 1
+    cmd_save "$SIM1" "$SIM2" "$NAME" "$UA" "$NV" "$VOLTE" "$MCFG1" "$MCFG2" "$AUTO" "$AUTOSIM" "$GBAND" > /dev/null || return 1
   fi
   if is_busy; then
     echo "ERROR another operation is running"
@@ -1286,6 +1346,7 @@ cmd_pack_update() {
   rm -rf "$STATE/pack.new"
   mkdir -p "$STATE/pack.new"
   for c in SKT KT LGU; do cp -r "$root/$c" "$STATE/pack.new/$c" || { echo "PACK_RESULT=FAILED"; return 1; }; done
+  if [ -d "$root/GLOBAL" ]; then cp -r "$root/GLOBAL" "$STATE/pack.new/GLOBAL" || { echo "PACK_RESULT=FAILED"; return 1; }; fi
   {
     echo "version=$ver"
     echo "source=$src"
@@ -1386,7 +1447,7 @@ case "$1" in
   pack-channel) [ -n "$2" ] && lock_check=1 ;;
 esac
 if [ -n "$lock_check" ] && locked; then
-  echo "LOCKED app integrated: change settings in the EFS 통신사 프로필 app"
+  echo "LOCKED app integrated: change settings in the EFS Carrier Profile app"
   exit 75
 fi
 

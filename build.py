@@ -26,10 +26,13 @@ DEFAULT_NDK = Path(r"C:\Android\Sdk\ndk\28.2.13676358")
 # efs/<carrier>/sim<n>, the same layout as profiles/ inside the module.
 PROFILE_DIRS = {(c, s): f"{c}/sim{s}" for c in ("SKT", "KT", "LGU") for s in (1, 2)}
 
+# efs/GLOBAL: files shared by every carrier (the global band set option).
+GLOBAL_DIR = "GLOBAL"
+
 # efs/info.json -> profiles/info.prop (key=value, read by efsctl.sh info).
 INFO_KEYS = ("version", "source")
 
-TEXT_SUFFIXES = {".sh", ".prop", ".html"}
+TEXT_SUFFIXES = {".sh", ".prop", ".html", ".js"}
 TEXT_NAMES = {"update-binary", "updater-script"}
 
 
@@ -80,7 +83,7 @@ def eol_mismatches(profiles: Path) -> list:
     out = []
     for line in git(profiles, "ls-files", "--eol").splitlines():
         parts = line.split(None, 3)
-        if len(parts) == 4 and parts[3].strip().split("/")[0] not in ("SKT", "KT", "LGU"):
+        if len(parts) == 4 and parts[3].strip().split("/")[0] not in ("SKT", "KT", "LGU", GLOBAL_DIR):
             continue
         if len(parts) == 4 and parts[0].startswith("i/") and parts[1].startswith("w/"):
             i, w = parts[0][2:], parts[1][2:]
@@ -141,6 +144,14 @@ def main() -> None:
                     arc = f"profiles/{carrier}/sim{slot}/{f.relative_to(base).as_posix()}"
                     zf.write(f, arc)
                     count += 1
+
+        gbase = args.profiles / GLOBAL_DIR
+        for f in sorted(gbase.rglob("*")) if gbase.is_dir() else []:
+            if f.is_file():
+                zf.write(f, f"profiles/{GLOBAL_DIR}/{f.relative_to(gbase).as_posix()}")
+                count += 1
+        if not (gbase / "band_set_01.xml").is_file():
+            print(f"WARNING {gbase / 'band_set_01.xml'} missing: the global band set option will not work")
 
         info = efs_info(args.profiles)
         tag = efs_tag(args.profiles)

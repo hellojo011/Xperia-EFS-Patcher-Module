@@ -1,6 +1,6 @@
 id=efsprofile_kr
 name=EFS Carrier Profile (KR VoLTE)
-version=v0.1.11
-versionCode=12
+version=v0.1.12
+versionCode=13
 author=DIGIWB화이트베어
 description=Writes SKT/KT/LG U+ EFS carrier profiles to the Qualcomm modem on-device via vendor libdiag DCI (EfsTools uploadDirectory replacement). Pick carriers per SIM in the WebUI, or use the action button (works on stock Magisk).
